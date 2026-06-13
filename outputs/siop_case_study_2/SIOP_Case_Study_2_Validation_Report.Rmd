@@ -1,0 +1,165 @@
+---
+title: "SIOP Case Study 2: Validation Report"
+author: "Antigravity Coding Assistant"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(tidyr)
+```
+
+## 1. Executive Summary
+
+This R Markdown document serves as the data validation report for **SIOP Case Study 2**. The objective of this analysis is to transform monthly SIOP forecast snapshots to compare the latest snapshot alongside prior snapshots (Resultant = 2023 P12, Lag 0 = 2023 P11, Lag 1 = 2023 P10) and merge actuals by `Item`, `Country`, and `Period` for forecast accuracy and bias reporting.
+
+```{r load_data}
+# Load the transformed data
+csv_path <- "SIOP_Case_Study_2_Transformed_Data.csv"
+if (!file.exists(csv_path)) {
+  # Fallback to absolute path if needed
+  csv_path <- "/Users/bhavya/Documents/Codex/2026-06-12/files-mentioned-by-the-user-case/outputs/siop_case_study_2/SIOP_Case_Study_2_Transformed_Data.csv"
+}
+df <- read_csv(csv_path)
+```
+
+The dataset contains **`r format(nrow(df), big.mark=",")`** rows and **`r ncol(df)`** columns.
+
+---
+
+## 2. Dataset Key Statistics
+
+Here is a summary of the dimensions and metric totals from the transformed dataset:
+
+```{r summary_stats}
+summary_stats <- tibble(
+  Metric = c(
+    "Total Rows",
+    "Distinct Items",
+    "Countries Covered",
+    "Periods Covered",
+    "Total Actual Revenue",
+    "Total Resultant Revenue Forecast (2023 P12)",
+    "Total Lag 0 Revenue Forecast (2023 P11)",
+    "Total Lag 1 Revenue Forecast (2023 P10)",
+    "Total Actual Non-Revenue",
+    "Total Actual Capex"
+  ),
+  Value = c(
+    format(nrow(df), big.mark=","),
+    format(n_distinct(df$Item), big.mark=","),
+    as.character(n_distinct(df$Country)),
+    as.character(n_distinct(df$Period)),
+    format(sum(df$Actual_Revenue, na.rm=TRUE), big.mark=",", nsmall=2),
+    format(sum(df$Resultant_Revenue_Forecast, na.rm=TRUE), big.mark=",", nsmall=2),
+    format(sum(df$Lag0_Revenue_Forecast, na.rm=TRUE), big.mark=",", nsmall=2),
+    format(sum(df$Lag1_Revenue_Forecast, na.rm=TRUE), big.mark=",", nsmall=2),
+    format(sum(df$Actual_NonRevenue, na.rm=TRUE), big.mark=","),
+    format(sum(df$Actual_Capex, na.rm=TRUE), big.mark=",")
+  )
+)
+
+knitr::kable(summary_stats, caption = "Transformed Dataset Metrics Summary")
+```
+
+---
+
+## 3. Revenue KPI Analysis by Country
+
+Using the standard SIOP metrics:
+- **Forecast Accuracy %** = $1 - \frac{|\text{Forecast} - \text{Actual}|}{\text{Actual}}$
+- **Forecast Bias %** = $\frac{\text{Forecast} - \text{Actual}}{\text{Actual}}$
+
+We aggregate the records by Country and calculate the KPIs for the Resultant, Lag 0, and Lag 1 snapshots:
+
+```{r country_kpis}
+country_summary <- df %>%
+  group_by(Country) %>%
+  summarize(
+    Actual_Revenue = sum(Actual_Revenue, na.rm=TRUE),
+    Resultant_Forecast = sum(Resultant_Revenue_Forecast, na.rm=TRUE),
+    Lag0_Forecast = sum(Lag0_Revenue_Forecast, na.rm=TRUE),
+    Lag1_Forecast = sum(Lag1_Revenue_Forecast, na.rm=TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    `Resultant Accuracy %` = round((1 - abs(Resultant_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2),
+    `Resultant Bias %` = round(((Resultant_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2),
+    `Lag 0 Accuracy %` = round((1 - abs(Lag0_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2),
+    `Lag 0 Bias %` = round(((Lag0_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2),
+    `Lag 1 Accuracy %` = round((1 - abs(Lag1_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2),
+    `Lag 1 Bias %` = round(((Lag1_Forecast - Actual_Revenue) / Actual_Revenue) * 100, 2)
+  )
+
+knitr::kable(country_summary, caption = "Revenue Performance by Country and Lag")
+```
+
+### Visualizing Actual vs Forecast Revenue by Country
+```{r chart_revenue, fig.width=10, fig.height=6}
+country_long <- country_summary %>%
+  select(Country, Actual = Actual_Revenue, Resultant = Resultant_Forecast, `Lag 0` = Lag0_Forecast, `Lag 1` = Lag1_Forecast) %>%
+  pivot_longer(cols = -Country, names_to = "Metric", values_to = "Revenue")
+
+ggplot(country_long, aes(x = Country, y = Revenue, fill = Metric)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Actual Revenue vs Forecast Snapshots by Country",
+    y = "Revenue Quantity/Value",
+    x = "Country",
+    fill = "Version"
+  )
+```
+
+---
+
+## 4. Power BI Modeling Guide
+
+To replicate this logic in Power BI:
+1. **Fact Table**: Import `SIOP_Case_Study_2_Transformed_Data.csv`.
+2. **Lag Selection**: Create a disconnected table named `Lag Selection` containing the column `Lag` with values: `"Resultant"`, `"Lag 0"`, and `"Lag 1"`.
+3. **DAX Measures**:
+   - **Lag Revenue Forecast**:
+     ```dax
+     Lag Revenue Forecast = 
+     SWITCH(
+         SELECTEDVALUE('Lag Selection'[Lag]), 
+         "Resultant", SUM(SIOP[Resultant_Revenue_Forecast]), 
+         "Lag 0", SUM(SIOP[Lag0_Revenue_Forecast]), 
+         "Lag 1", SUM(SIOP[Lag1_Revenue_Forecast])
+     )
+     ```
+   - **Revenue Forecast Accuracy %**:
+     ```dax
+     Revenue Forecast Accuracy % = 
+     1 - DIVIDE(
+         ABS([Lag Revenue Forecast] - SUM(SIOP[Actual_Revenue])), 
+         SUM(SIOP[Actual_Revenue])
+     )
+     ```
+   - **Revenue Forecast Bias %**:
+     ```dax
+     Revenue Forecast Bias % = 
+     DIVIDE(
+         [Lag Revenue Forecast] - SUM(SIOP[Actual_Revenue]), 
+         SUM(SIOP[Actual_Revenue])
+     )
+     ```
+
+---
+
+## 5. Findings & Recommendations
+- **Under-Forecasting**: Countries A, B, and C show massive negative bias (ranging from -72.9% to -94.9%), indicating a significant gap where forecasts under-represent actual demand.
+- **Over-Forecasting**: Country D shows extreme positive bias (forecasts are 3.7x to 4.5x the actual demand), resulting in negative accuracy.
+- **Action**: Implement machine learning or historical baseline corrections in the SIOP forecasting engine to correct systemic biases before submitting snapshots to BI.
