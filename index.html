@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIOP Case Study 2 Dashboard Summary</title>
+    <meta name="description" content="Interactive SIOP forecast accuracy and bias performance dashboard.">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS (for layout utilities) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        darkbg: '#0F172A',
+                        cardbg: 'rgba(30, 41, 59, 0.7)',
+                        borderglow: 'rgba(59, 130, 246, 0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .kpi-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 12px 24px -10px rgba(59, 130, 246, 0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+    </style>
+</head>
+<body class="p-6 font-sans">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between p-6 glass-panel rounded-2xl border border-slate-700/50">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-teal-400">
+                    SIOP Case Study 2: Interactive Dashboard
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">
+                    Comparing forecast snapshots (Resultant P12, Lag 0 P11, Lag 1 P10) against actuals.
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-3 flex-wrap">
+                <!-- Lag Selector -->
+                <div class="flex flex-col">
+                    <label class="text-xs text-slate-400 font-semibold mb-1 uppercase tracking-wider">Lag Selection</label>
+                    <select id="lagSelector" onchange="updateDashboard()" class="bg-slate-800 text-white rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:border-blue-500 text-sm">
+                        <option value="Resultant">Resultant (2023 P12)</option>
+                        <option value="Lag0">Lag 0 (2023 P11)</option>
+                        <option value="Lag1">Lag 1 (2023 P10)</option>
+                    </select>
+                </div>
+                <!-- Country Filter -->
+                <div class="flex flex-col">
+                    <label class="text-xs text-slate-400 font-semibold mb-1 uppercase tracking-wider">Country</label>
+                    <select id="countrySelector" onchange="updateDashboard()" class="bg-slate-800 text-white rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:border-blue-500 text-sm">
+                        <option value="ALL">All Countries</option>
+                        <option value="A">Country A</option>
+                        <option value="B">Country B</option>
+                        <option value="C">Country C</option>
+                        <option value="D">Country D</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Summary Cards -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- KPI 1 -->
+            <div class="kpi-card p-5 glass-panel rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Selected Lag Forecast</span>
+                <span id="kpiForecast" class="text-2xl font-bold mt-2 text-blue-400">$0.00</span>
+                <span class="text-slate-500 text-xs mt-1">Sum of forecast revenue qty</span>
+            </div>
+            <!-- KPI 2 -->
+            <div class="kpi-card p-5 glass-panel rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Actual Revenue</span>
+                <span id="kpiActual" class="text-2xl font-bold mt-2 text-slate-100">$0.00</span>
+                <span class="text-slate-500 text-xs mt-1">Sum of actual revenue qty</span>
+            </div>
+            <!-- KPI 3 -->
+            <div class="kpi-card p-5 glass-panel rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Forecast Accuracy %</span>
+                <span id="kpiAccuracy" class="text-2xl font-bold mt-2 text-teal-400">0.0%</span>
+                <span class="text-slate-500 text-xs mt-1">1 - |Fcast - Act| / Act</span>
+            </div>
+            <!-- KPI 4 -->
+            <div class="kpi-card p-5 glass-panel rounded-2xl flex flex-col justify-between">
+                <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Forecast Bias %</span>
+                <span id="kpiBias" class="text-2xl font-bold mt-2 text-indigo-400">0.0%</span>
+                <span class="text-slate-500 text-xs mt-1">(Fcast - Act) / Act</span>
+            </div>
+        </section>
+
+        <!-- Visualizations Grid -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Chart 1 (Bar Chart) -->
+            <div class="p-6 glass-panel rounded-2xl border border-slate-700/50 flex flex-col">
+                <h3 class="text-lg font-semibold text-slate-200 mb-4">Actual Revenue vs Selected Forecast by Country</h3>
+                <div class="flex-grow min-h-[300px]">
+                    <canvas id="countryChart"></canvas>
+                </div>
+            </div>
+            <!-- Chart 2 (Line Chart) -->
+            <div class="p-6 glass-panel rounded-2xl border border-slate-700/50 flex flex-col">
+                <h3 class="text-lg font-semibold text-slate-200 mb-4">Revenue Accuracy Trend by Period</h3>
+                <div class="flex-grow min-h-[300px]">
+                    <canvas id="periodChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Summary Matrix -->
+        <section class="p-6 glass-panel rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-slate-200">Country-Period Summary Matrix</h3>
+                <span class="text-xs text-slate-400">Showing monthly aggregated detail views</span>
+            </div>
+            <div class="overflow-x-auto max-h-[350px]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-700 text-slate-400 text-xs uppercase font-semibold">
+                            <th class="py-3 px-4">Country</th>
+                            <th class="py-3 px-4">Period</th>
+                            <th class="py-3 px-4 text-right">Actual Revenue</th>
+                            <th class="py-3 px-4 text-right">Forecast Revenue</th>
+                            <th class="py-3 px-4 text-right">Accuracy %</th>
+                            <th class="py-3 px-4 text-right">Bias %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody" class="text-sm divide-y divide-slate-800 text-slate-300">
+                        <!-- Dynamic rows inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Data Injection -->
+    <script>
+        const rawData = [{"Country": "A", "Period": "2023 P10", "Lag0_Capex_Forecast": 0.0, "Lag1_Capex_Forecast": 76.21, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 0.0, "Lag1_NonRevenue_Forecast": 9.76, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 0.0, "Lag1_Revenue_Forecast": 147335.97, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 5140430.84, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2023 P11", "Lag0_Capex_Forecast": 68.51, "Lag1_Capex_Forecast": 97.41, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 7.45, "Lag1_NonRevenue_Forecast": 3.9899999999999998, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 168564.86, "Lag1_Revenue_Forecast": 68304.88, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 3879579.98, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2023 P12", "Lag0_Capex_Forecast": 64.12, "Lag1_Capex_Forecast": 56.89, "Resultant_Capex_Forecast": 55.69, "Lag0_NonRevenue_Forecast": 6.55, "Lag1_NonRevenue_Forecast": 8.27, "Resultant_NonRevenue_Forecast": 10.58, "Lag0_Revenue_Forecast": 76614.96, "Lag1_Revenue_Forecast": 84312.1, "Resultant_Revenue_Forecast": 288474.23000000004, "Actual_Revenue": 4168080.2199999997, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P01", "Lag0_Capex_Forecast": 65.39, "Lag1_Capex_Forecast": 77.8, "Resultant_Capex_Forecast": 64.15, "Lag0_NonRevenue_Forecast": 16.52, "Lag1_NonRevenue_Forecast": 9.73, "Resultant_NonRevenue_Forecast": 10.64, "Lag0_Revenue_Forecast": 284426.15, "Lag1_Revenue_Forecast": 172166.93, "Resultant_Revenue_Forecast": 119298.77, "Actual_Revenue": 2410815.16, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P02", "Lag0_Capex_Forecast": 66.32, "Lag1_Capex_Forecast": 55.06, "Resultant_Capex_Forecast": 97.57, "Lag0_NonRevenue_Forecast": 10.97, "Lag1_NonRevenue_Forecast": 12.889999999999999, "Resultant_NonRevenue_Forecast": 5.93, "Lag0_Revenue_Forecast": 96840.62, "Lag1_Revenue_Forecast": 142175.18, "Resultant_Revenue_Forecast": 189113.94, "Actual_Revenue": 2128458.44, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P03", "Lag0_Capex_Forecast": 78.23, "Lag1_Capex_Forecast": 72.98, "Resultant_Capex_Forecast": 66.36, "Lag0_NonRevenue_Forecast": 10.45, "Lag1_NonRevenue_Forecast": 11.85, "Resultant_NonRevenue_Forecast": 10.42, "Lag0_Revenue_Forecast": 131075.34999999998, "Lag1_Revenue_Forecast": 50124.47, "Resultant_Revenue_Forecast": 264080.9, "Actual_Revenue": 2229324.1, "Actual_NonRevenue": 772.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P04", "Lag0_Capex_Forecast": 69.6, "Lag1_Capex_Forecast": 67.25, "Resultant_Capex_Forecast": 61.92, "Lag0_NonRevenue_Forecast": 7.65, "Lag1_NonRevenue_Forecast": 8.05, "Resultant_NonRevenue_Forecast": 5.64, "Lag0_Revenue_Forecast": 110162.73999999999, "Lag1_Revenue_Forecast": 123839.09, "Resultant_Revenue_Forecast": 148970.07, "Actual_Revenue": 1720917.22, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P05", "Lag0_Capex_Forecast": 85.37, "Lag1_Capex_Forecast": 55.06, "Resultant_Capex_Forecast": 54.949999999999996, "Lag0_NonRevenue_Forecast": 6.04, "Lag1_NonRevenue_Forecast": 7.46, "Resultant_NonRevenue_Forecast": 4.53, "Lag0_Revenue_Forecast": 219479.01, "Lag1_Revenue_Forecast": 108668.59, "Resultant_Revenue_Forecast": 201708.31, "Actual_Revenue": 3675183.54, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P06", "Lag0_Capex_Forecast": 65.36, "Lag1_Capex_Forecast": 52.02, "Resultant_Capex_Forecast": 65.9, "Lag0_NonRevenue_Forecast": 10.01, "Lag1_NonRevenue_Forecast": 11.98, "Resultant_NonRevenue_Forecast": 13.02, "Lag0_Revenue_Forecast": 176067.24, "Lag1_Revenue_Forecast": 172128.38, "Resultant_Revenue_Forecast": 202938.41999999998, "Actual_Revenue": 2835363.6, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P07", "Lag0_Capex_Forecast": 65.67, "Lag1_Capex_Forecast": 65.19, "Resultant_Capex_Forecast": 63.89, "Lag0_NonRevenue_Forecast": 12.799999999999999, "Lag1_NonRevenue_Forecast": 9.25, "Resultant_NonRevenue_Forecast": 11.79, "Lag0_Revenue_Forecast": 107458.76000000001, "Lag1_Revenue_Forecast": 54241.479999999996, "Resultant_Revenue_Forecast": 98467.47, "Actual_Revenue": 3098392.44, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P08", "Lag0_Capex_Forecast": 68.99, "Lag1_Capex_Forecast": 61.62, "Resultant_Capex_Forecast": 50.34, "Lag0_NonRevenue_Forecast": 8.74, "Lag1_NonRevenue_Forecast": 10.83, "Resultant_NonRevenue_Forecast": 7.42, "Lag0_Revenue_Forecast": 280984.35, "Lag1_Revenue_Forecast": 112729.01, "Resultant_Revenue_Forecast": 76551.97, "Actual_Revenue": 1944286.38, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P09", "Lag0_Capex_Forecast": 47.55, "Lag1_Capex_Forecast": 63.74, "Resultant_Capex_Forecast": 59.0, "Lag0_NonRevenue_Forecast": 10.65, "Lag1_NonRevenue_Forecast": 6.72, "Resultant_NonRevenue_Forecast": 14.9, "Lag0_Revenue_Forecast": 222884.09, "Lag1_Revenue_Forecast": 149535.75, "Resultant_Revenue_Forecast": 105388.74, "Actual_Revenue": 915433.22, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P10", "Lag0_Capex_Forecast": 61.72, "Lag1_Capex_Forecast": 67.17, "Resultant_Capex_Forecast": 65.01, "Lag0_NonRevenue_Forecast": 7.43, "Lag1_NonRevenue_Forecast": 8.08, "Resultant_NonRevenue_Forecast": 12.45, "Lag0_Revenue_Forecast": 110509.34, "Lag1_Revenue_Forecast": 93901.34, "Resultant_Revenue_Forecast": 64254.06, "Actual_Revenue": 1615887.24, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P11", "Lag0_Capex_Forecast": 35.53, "Lag1_Capex_Forecast": 61.08, "Resultant_Capex_Forecast": 52.0, "Lag0_NonRevenue_Forecast": 6.8, "Lag1_NonRevenue_Forecast": 7.71, "Resultant_NonRevenue_Forecast": 9.9, "Lag0_Revenue_Forecast": 243867.92, "Lag1_Revenue_Forecast": 219749.02, "Resultant_Revenue_Forecast": 78829.62, "Actual_Revenue": 1545122.1600000001, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "A", "Period": "2024 P12", "Lag0_Capex_Forecast": 67.12, "Lag1_Capex_Forecast": 56.99, "Resultant_Capex_Forecast": 62.16, "Lag0_NonRevenue_Forecast": 11.54, "Lag1_NonRevenue_Forecast": 9.34, "Resultant_NonRevenue_Forecast": 11.0, "Lag0_Revenue_Forecast": 96106.83, "Lag1_Revenue_Forecast": 324906.97000000003, "Resultant_Revenue_Forecast": 101159.11, "Actual_Revenue": 781193.14, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2023 P10", "Lag0_Capex_Forecast": 0.0, "Lag1_Capex_Forecast": 21.09, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 0.0, "Lag1_NonRevenue_Forecast": 3.71, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 0.0, "Lag1_Revenue_Forecast": 88602.32999999999, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 666110.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2023 P11", "Lag0_Capex_Forecast": 26.31, "Lag1_Capex_Forecast": 24.47, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 2.94, "Lag1_NonRevenue_Forecast": 7.82, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 19619.6, "Lag1_Revenue_Forecast": 143500.83, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 485668.0, "Actual_NonRevenue": 246.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2023 P12", "Lag0_Capex_Forecast": 13.58, "Lag1_Capex_Forecast": 19.55, "Resultant_Capex_Forecast": 18.58, "Lag0_NonRevenue_Forecast": 5.63, "Lag1_NonRevenue_Forecast": 1.6300000000000001, "Resultant_NonRevenue_Forecast": 0.87, "Lag0_Revenue_Forecast": 122669.97, "Lag1_Revenue_Forecast": 118507.65, "Resultant_Revenue_Forecast": 25132.08, "Actual_Revenue": 411105.5, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P01", "Lag0_Capex_Forecast": 30.19, "Lag1_Capex_Forecast": 11.26, "Resultant_Capex_Forecast": 37.51, "Lag0_NonRevenue_Forecast": 3.84, "Lag1_NonRevenue_Forecast": 0.8200000000000001, "Resultant_NonRevenue_Forecast": 2.9699999999999998, "Lag0_Revenue_Forecast": 72253.88, "Lag1_Revenue_Forecast": 23455.1, "Resultant_Revenue_Forecast": 135691.18, "Actual_Revenue": 479518.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P02", "Lag0_Capex_Forecast": 14.53, "Lag1_Capex_Forecast": 26.64, "Resultant_Capex_Forecast": 25.61, "Lag0_NonRevenue_Forecast": 3.84, "Lag1_NonRevenue_Forecast": 4.05, "Resultant_NonRevenue_Forecast": 2.65, "Lag0_Revenue_Forecast": 23474.82, "Lag1_Revenue_Forecast": 52960.8, "Resultant_Revenue_Forecast": 79243.7, "Actual_Revenue": 343486.0, "Actual_NonRevenue": 238.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P03", "Lag0_Capex_Forecast": 26.990000000000002, "Lag1_Capex_Forecast": 25.39, "Resultant_Capex_Forecast": 31.14, "Lag0_NonRevenue_Forecast": 2.31, "Lag1_NonRevenue_Forecast": 2.16, "Resultant_NonRevenue_Forecast": 6.23, "Lag0_Revenue_Forecast": 95762.48, "Lag1_Revenue_Forecast": 22647.08, "Resultant_Revenue_Forecast": 27435.61, "Actual_Revenue": 362500.0, "Actual_NonRevenue": 46.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P04", "Lag0_Capex_Forecast": 27.48, "Lag1_Capex_Forecast": 16.96, "Resultant_Capex_Forecast": 25.96, "Lag0_NonRevenue_Forecast": 2.11, "Lag1_NonRevenue_Forecast": 2.12, "Resultant_NonRevenue_Forecast": 6.51, "Lag0_Revenue_Forecast": 75255.98999999999, "Lag1_Revenue_Forecast": 68822.98, "Resultant_Revenue_Forecast": 90374.8, "Actual_Revenue": 339828.0, "Actual_NonRevenue": 124.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P05", "Lag0_Capex_Forecast": 12.24, "Lag1_Capex_Forecast": 15.88, "Resultant_Capex_Forecast": 25.12, "Lag0_NonRevenue_Forecast": 1.52, "Lag1_NonRevenue_Forecast": 2.31, "Resultant_NonRevenue_Forecast": 4.21, "Lag0_Revenue_Forecast": 13771.09, "Lag1_Revenue_Forecast": 29772.53, "Resultant_Revenue_Forecast": 45581.31, "Actual_Revenue": 308130.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P06", "Lag0_Capex_Forecast": 16.74, "Lag1_Capex_Forecast": 14.559999999999999, "Resultant_Capex_Forecast": 23.01, "Lag0_NonRevenue_Forecast": 4.81, "Lag1_NonRevenue_Forecast": 1.33, "Resultant_NonRevenue_Forecast": 3.7600000000000002, "Lag0_Revenue_Forecast": 111898.63999999998, "Lag1_Revenue_Forecast": 14929.43, "Resultant_Revenue_Forecast": 16511.21, "Actual_Revenue": 275288.0, "Actual_NonRevenue": 116.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P07", "Lag0_Capex_Forecast": 24.66, "Lag1_Capex_Forecast": 14.94, "Resultant_Capex_Forecast": 14.22, "Lag0_NonRevenue_Forecast": 4.71, "Lag1_NonRevenue_Forecast": 2.14, "Resultant_NonRevenue_Forecast": 3.46, "Lag0_Revenue_Forecast": 172352.96, "Lag1_Revenue_Forecast": 22538.12, "Resultant_Revenue_Forecast": 57571.36, "Actual_Revenue": 200010.0, "Actual_NonRevenue": 100.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P08", "Lag0_Capex_Forecast": 18.37, "Lag1_Capex_Forecast": 19.48, "Resultant_Capex_Forecast": 12.35, "Lag0_NonRevenue_Forecast": 1.39, "Lag1_NonRevenue_Forecast": 5.71, "Resultant_NonRevenue_Forecast": 3.65, "Lag0_Revenue_Forecast": 16370.13, "Lag1_Revenue_Forecast": 11904.76, "Resultant_Revenue_Forecast": 21563.56, "Actual_Revenue": 191968.0, "Actual_NonRevenue": 28.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P09", "Lag0_Capex_Forecast": 6.6, "Lag1_Capex_Forecast": 33.07, "Resultant_Capex_Forecast": 7.83, "Lag0_NonRevenue_Forecast": 1.11, "Lag1_NonRevenue_Forecast": 2.35, "Resultant_NonRevenue_Forecast": 4.02, "Lag0_Revenue_Forecast": 63351.439999999995, "Lag1_Revenue_Forecast": 21626.55, "Resultant_Revenue_Forecast": 65471.23, "Actual_Revenue": 172880.0, "Actual_NonRevenue": 148.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P10", "Lag0_Capex_Forecast": 14.69, "Lag1_Capex_Forecast": 10.66, "Resultant_Capex_Forecast": 18.01, "Lag0_NonRevenue_Forecast": 1.59, "Lag1_NonRevenue_Forecast": 4.3999999999999995, "Resultant_NonRevenue_Forecast": 3.48, "Lag0_Revenue_Forecast": 31529.170000000002, "Lag1_Revenue_Forecast": 46340.96, "Resultant_Revenue_Forecast": 20630.06, "Actual_Revenue": 220670.0, "Actual_NonRevenue": 702.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P11", "Lag0_Capex_Forecast": 11.12, "Lag1_Capex_Forecast": 20.2, "Resultant_Capex_Forecast": 27.29, "Lag0_NonRevenue_Forecast": 1.15, "Lag1_NonRevenue_Forecast": 4.15, "Resultant_NonRevenue_Forecast": 4.87, "Lag0_Revenue_Forecast": 28863.02, "Lag1_Revenue_Forecast": 16539.14, "Resultant_Revenue_Forecast": 47563.29, "Actual_Revenue": 121764.0, "Actual_NonRevenue": 110.0, "Actual_Capex": 0.0}, {"Country": "B", "Period": "2024 P12", "Lag0_Capex_Forecast": 8.57, "Lag1_Capex_Forecast": 18.48, "Resultant_Capex_Forecast": 13.28, "Lag0_NonRevenue_Forecast": 6.57, "Lag1_NonRevenue_Forecast": 1.17, "Resultant_NonRevenue_Forecast": 1.2, "Lag0_Revenue_Forecast": 78234.55, "Lag1_Revenue_Forecast": 15802.41, "Resultant_Revenue_Forecast": 35267.26, "Actual_Revenue": 111400.0, "Actual_NonRevenue": 22.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2023 P10", "Lag0_Capex_Forecast": 0.0, "Lag1_Capex_Forecast": 14.819999999999999, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 0.0, "Lag1_NonRevenue_Forecast": 1.07, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 0.0, "Lag1_Revenue_Forecast": 48745.979999999996, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 225130.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2023 P11", "Lag0_Capex_Forecast": 8.59, "Lag1_Capex_Forecast": 10.4, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 0.67, "Lag1_NonRevenue_Forecast": 2.19, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 50488.79, "Lag1_Revenue_Forecast": 15548.23, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 354004.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2023 P12", "Lag0_Capex_Forecast": 21.83, "Lag1_Capex_Forecast": 11.39, "Resultant_Capex_Forecast": 9.43, "Lag0_NonRevenue_Forecast": 4.13, "Lag1_NonRevenue_Forecast": 0.51, "Resultant_NonRevenue_Forecast": 5.81, "Lag0_Revenue_Forecast": 22456.63, "Lag1_Revenue_Forecast": 11711.44, "Resultant_Revenue_Forecast": 12139.95, "Actual_Revenue": 248114.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P01", "Lag0_Capex_Forecast": 9.43, "Lag1_Capex_Forecast": 16.48, "Resultant_Capex_Forecast": 9.67, "Lag0_NonRevenue_Forecast": 8.4, "Lag1_NonRevenue_Forecast": 1.69, "Resultant_NonRevenue_Forecast": 2.5, "Lag0_Revenue_Forecast": 74261.16, "Lag1_Revenue_Forecast": 10418.55, "Resultant_Revenue_Forecast": 16495.0, "Actual_Revenue": 270400.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P02", "Lag0_Capex_Forecast": 17.15, "Lag1_Capex_Forecast": 18.03, "Resultant_Capex_Forecast": 10.38, "Lag0_NonRevenue_Forecast": 1.72, "Lag1_NonRevenue_Forecast": 1.71, "Resultant_NonRevenue_Forecast": 4.199999999999999, "Lag0_Revenue_Forecast": 72444.14, "Lag1_Revenue_Forecast": 17872.89, "Resultant_Revenue_Forecast": 19834.79, "Actual_Revenue": 151892.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P03", "Lag0_Capex_Forecast": 6.59, "Lag1_Capex_Forecast": 10.78, "Resultant_Capex_Forecast": 18.84, "Lag0_NonRevenue_Forecast": 2.11, "Lag1_NonRevenue_Forecast": 0.67, "Resultant_NonRevenue_Forecast": 1.61, "Lag0_Revenue_Forecast": 8402.05, "Lag1_Revenue_Forecast": 63928.16, "Resultant_Revenue_Forecast": 13111.52, "Actual_Revenue": 206240.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P04", "Lag0_Capex_Forecast": 17.2, "Lag1_Capex_Forecast": 16.45, "Resultant_Capex_Forecast": 15.53, "Lag0_NonRevenue_Forecast": 3.35, "Lag1_NonRevenue_Forecast": 0.78, "Resultant_NonRevenue_Forecast": 4.45, "Lag0_Revenue_Forecast": 13135.48, "Lag1_Revenue_Forecast": 28468.86, "Resultant_Revenue_Forecast": 21807.77, "Actual_Revenue": 350038.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P05", "Lag0_Capex_Forecast": 18.66, "Lag1_Capex_Forecast": 10.39, "Resultant_Capex_Forecast": 16.19, "Lag0_NonRevenue_Forecast": 1.18, "Lag1_NonRevenue_Forecast": 0.84, "Resultant_NonRevenue_Forecast": 1.3, "Lag0_Revenue_Forecast": 26841.96, "Lag1_Revenue_Forecast": 13613.43, "Resultant_Revenue_Forecast": 15915.93, "Actual_Revenue": 94514.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P06", "Lag0_Capex_Forecast": 4.22, "Lag1_Capex_Forecast": 17.79, "Resultant_Capex_Forecast": 15.84, "Lag0_NonRevenue_Forecast": 0.91, "Lag1_NonRevenue_Forecast": 0.68, "Resultant_NonRevenue_Forecast": 2.45, "Lag0_Revenue_Forecast": 87691.81, "Lag1_Revenue_Forecast": 14839.33, "Resultant_Revenue_Forecast": 24109.82, "Actual_Revenue": 178562.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P07", "Lag0_Capex_Forecast": 11.940000000000001, "Lag1_Capex_Forecast": 12.77, "Resultant_Capex_Forecast": 15.49, "Lag0_NonRevenue_Forecast": 7.39, "Lag1_NonRevenue_Forecast": 1.34, "Resultant_NonRevenue_Forecast": 4.35, "Lag0_Revenue_Forecast": 13131.3, "Lag1_Revenue_Forecast": 15099.4, "Resultant_Revenue_Forecast": 16027.25, "Actual_Revenue": 129948.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P08", "Lag0_Capex_Forecast": 10.18, "Lag1_Capex_Forecast": 12.91, "Resultant_Capex_Forecast": 18.92, "Lag0_NonRevenue_Forecast": 0.62, "Lag1_NonRevenue_Forecast": 1.41, "Resultant_NonRevenue_Forecast": 7.93, "Lag0_Revenue_Forecast": 17584.45, "Lag1_Revenue_Forecast": 41527.15, "Resultant_Revenue_Forecast": 79341.12, "Actual_Revenue": 123974.0, "Actual_NonRevenue": 2260.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P09", "Lag0_Capex_Forecast": 15.7, "Lag1_Capex_Forecast": 17.23, "Resultant_Capex_Forecast": 31.47, "Lag0_NonRevenue_Forecast": 2.0, "Lag1_NonRevenue_Forecast": 1.41, "Resultant_NonRevenue_Forecast": 3.4600000000000004, "Lag0_Revenue_Forecast": 130662.44, "Lag1_Revenue_Forecast": 13383.55, "Resultant_Revenue_Forecast": 15351.55, "Actual_Revenue": 191882.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P10", "Lag0_Capex_Forecast": 12.68, "Lag1_Capex_Forecast": 10.14, "Resultant_Capex_Forecast": 8.05, "Lag0_NonRevenue_Forecast": 2.47, "Lag1_NonRevenue_Forecast": 1.79, "Resultant_NonRevenue_Forecast": 2.16, "Lag0_Revenue_Forecast": 61468.33, "Lag1_Revenue_Forecast": 84429.38, "Resultant_Revenue_Forecast": 14120.02, "Actual_Revenue": 97462.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P11", "Lag0_Capex_Forecast": 18.11, "Lag1_Capex_Forecast": 34.47, "Resultant_Capex_Forecast": 23.64, "Lag0_NonRevenue_Forecast": 1.06, "Lag1_NonRevenue_Forecast": 1.66, "Resultant_NonRevenue_Forecast": 1.69, "Lag0_Revenue_Forecast": 183594.22999999998, "Lag1_Revenue_Forecast": 14801.69, "Resultant_Revenue_Forecast": 21060.69, "Actual_Revenue": 166582.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "C", "Period": "2024 P12", "Lag0_Capex_Forecast": 19.73, "Lag1_Capex_Forecast": 18.95, "Resultant_Capex_Forecast": 23.76, "Lag0_NonRevenue_Forecast": 1.56, "Lag1_NonRevenue_Forecast": 0.35, "Resultant_NonRevenue_Forecast": 1.8900000000000001, "Lag0_Revenue_Forecast": 10573.94, "Lag1_Revenue_Forecast": 9170.0, "Resultant_Revenue_Forecast": 24413.53, "Actual_Revenue": 62282.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2023 P10", "Lag0_Capex_Forecast": 0.0, "Lag1_Capex_Forecast": 70.61, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 0.0, "Lag1_NonRevenue_Forecast": 7.260000000000001, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 0.0, "Lag1_Revenue_Forecast": 248087.42, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 51972.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2023 P11", "Lag0_Capex_Forecast": 38.48, "Lag1_Capex_Forecast": 47.57, "Resultant_Capex_Forecast": 0.0, "Lag0_NonRevenue_Forecast": 5.39, "Lag1_NonRevenue_Forecast": 6.64, "Resultant_NonRevenue_Forecast": 0.0, "Lag0_Revenue_Forecast": 229025.31, "Lag1_Revenue_Forecast": 50709.88, "Resultant_Revenue_Forecast": 0.0, "Actual_Revenue": 84570.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2023 P12", "Lag0_Capex_Forecast": 38.69, "Lag1_Capex_Forecast": 50.14, "Resultant_Capex_Forecast": 76.23, "Lag0_NonRevenue_Forecast": 11.799999999999999, "Lag1_NonRevenue_Forecast": 11.5, "Resultant_NonRevenue_Forecast": 7.81, "Lag0_Revenue_Forecast": 261744.3, "Lag1_Revenue_Forecast": 205269.08, "Resultant_Revenue_Forecast": 176403.7, "Actual_Revenue": 30548.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P01", "Lag0_Capex_Forecast": 51.62, "Lag1_Capex_Forecast": 56.47, "Resultant_Capex_Forecast": 44.22, "Lag0_NonRevenue_Forecast": 4.96, "Lag1_NonRevenue_Forecast": 6.92, "Resultant_NonRevenue_Forecast": 3.3200000000000003, "Lag0_Revenue_Forecast": 233630.41, "Lag1_Revenue_Forecast": 77856.06, "Resultant_Revenue_Forecast": 145645.71, "Actual_Revenue": 26670.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P02", "Lag0_Capex_Forecast": 47.7, "Lag1_Capex_Forecast": 43.93, "Resultant_Capex_Forecast": 43.32, "Lag0_NonRevenue_Forecast": 4.86, "Lag1_NonRevenue_Forecast": 6.64, "Resultant_NonRevenue_Forecast": 10.51, "Lag0_Revenue_Forecast": 115660.65000000001, "Lag1_Revenue_Forecast": 139598.96, "Resultant_Revenue_Forecast": 98866.64, "Actual_Revenue": 44424.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P03", "Lag0_Capex_Forecast": 46.51, "Lag1_Capex_Forecast": 29.46, "Resultant_Capex_Forecast": 59.39, "Lag0_NonRevenue_Forecast": 6.47, "Lag1_NonRevenue_Forecast": 6.62, "Resultant_NonRevenue_Forecast": 7.45, "Lag0_Revenue_Forecast": 51814.86, "Lag1_Revenue_Forecast": 45406.02, "Resultant_Revenue_Forecast": 123380.12, "Actual_Revenue": 3722.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P04", "Lag0_Capex_Forecast": 53.08, "Lag1_Capex_Forecast": 52.3, "Resultant_Capex_Forecast": 49.36, "Lag0_NonRevenue_Forecast": 9.14, "Lag1_NonRevenue_Forecast": 9.9, "Resultant_NonRevenue_Forecast": 6.95, "Lag0_Revenue_Forecast": 118137.22, "Lag1_Revenue_Forecast": 134403.88, "Resultant_Revenue_Forecast": 112742.21, "Actual_Revenue": 33694.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P05", "Lag0_Capex_Forecast": 45.48, "Lag1_Capex_Forecast": 33.69, "Resultant_Capex_Forecast": 43.339999999999996, "Lag0_NonRevenue_Forecast": 11.26, "Lag1_NonRevenue_Forecast": 7.18, "Resultant_NonRevenue_Forecast": 4.77, "Lag0_Revenue_Forecast": 67823.71, "Lag1_Revenue_Forecast": 153529.3, "Resultant_Revenue_Forecast": 58650.11, "Actual_Revenue": 28594.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P06", "Lag0_Capex_Forecast": 38.26, "Lag1_Capex_Forecast": 45.27, "Resultant_Capex_Forecast": 45.99, "Lag0_NonRevenue_Forecast": 6.48, "Lag1_NonRevenue_Forecast": 4.48, "Resultant_NonRevenue_Forecast": 4.37, "Lag0_Revenue_Forecast": 155763.43, "Lag1_Revenue_Forecast": 107138.38, "Resultant_Revenue_Forecast": 77101.55, "Actual_Revenue": 22510.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P07", "Lag0_Capex_Forecast": 37.62, "Lag1_Capex_Forecast": 37.12, "Resultant_Capex_Forecast": 51.35, "Lag0_NonRevenue_Forecast": 5.36, "Lag1_NonRevenue_Forecast": 7.66, "Resultant_NonRevenue_Forecast": 18.91, "Lag0_Revenue_Forecast": 100927.78, "Lag1_Revenue_Forecast": 53496.36, "Resultant_Revenue_Forecast": 129796.9, "Actual_Revenue": 22410.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P08", "Lag0_Capex_Forecast": 53.14, "Lag1_Capex_Forecast": 67.22, "Resultant_Capex_Forecast": 35.6, "Lag0_NonRevenue_Forecast": 5.94, "Lag1_NonRevenue_Forecast": 4.3500000000000005, "Resultant_NonRevenue_Forecast": 6.51, "Lag0_Revenue_Forecast": 92454.88, "Lag1_Revenue_Forecast": 83152.26000000001, "Resultant_Revenue_Forecast": 66349.3, "Actual_Revenue": 16400.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P09", "Lag0_Capex_Forecast": 54.94, "Lag1_Capex_Forecast": 44.28, "Resultant_Capex_Forecast": 49.04, "Lag0_NonRevenue_Forecast": 12.49, "Lag1_NonRevenue_Forecast": 7.98, "Resultant_NonRevenue_Forecast": 13.21, "Lag0_Revenue_Forecast": 169488.04, "Lag1_Revenue_Forecast": 100010.56, "Resultant_Revenue_Forecast": 153283.2, "Actual_Revenue": 11968.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P10", "Lag0_Capex_Forecast": 48.93, "Lag1_Capex_Forecast": 41.75, "Resultant_Capex_Forecast": 28.82, "Lag0_NonRevenue_Forecast": 3.5900000000000003, "Lag1_NonRevenue_Forecast": 6.49, "Resultant_NonRevenue_Forecast": 5.75, "Lag0_Revenue_Forecast": 92672.01, "Lag1_Revenue_Forecast": 72155.62, "Resultant_Revenue_Forecast": 134847.21, "Actual_Revenue": 15950.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P11", "Lag0_Capex_Forecast": 40.24, "Lag1_Capex_Forecast": 45.95, "Resultant_Capex_Forecast": 64.17, "Lag0_NonRevenue_Forecast": 14.32, "Lag1_NonRevenue_Forecast": 7.930000000000001, "Resultant_NonRevenue_Forecast": 4.53, "Lag0_Revenue_Forecast": 59853.73, "Lag1_Revenue_Forecast": 155933.76, "Resultant_Revenue_Forecast": 127757.55, "Actual_Revenue": 10680.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}, {"Country": "D", "Period": "2024 P12", "Lag0_Capex_Forecast": 33.85, "Lag1_Capex_Forecast": 44.55, "Resultant_Capex_Forecast": 39.53, "Lag0_NonRevenue_Forecast": 22.13, "Lag1_NonRevenue_Forecast": 7.7700000000000005, "Resultant_NonRevenue_Forecast": 95.69999999999999, "Lag0_Revenue_Forecast": 105178.08, "Lag1_Revenue_Forecast": 99812.89, "Resultant_Revenue_Forecast": 111067.22, "Actual_Revenue": 5104.0, "Actual_NonRevenue": 0.0, "Actual_Capex": 0.0}];
+
+        let countryChart = null;
+        let periodChart = null;
+
+        // Number Formatter
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+        }
+
+        function formatPercent(val) {
+            return (val * 100).toFixed(1) + '%';
+        }
+
+        function initCharts() {
+            const ctxCountry = document.getElementById('countryChart').getContext('2d');
+            countryChart = new Chart(ctxCountry, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Actual Revenue',
+                            backgroundColor: '#64748B',
+                            data: []
+                        },
+                        {
+                            label: 'Forecast Revenue',
+                            backgroundColor: '#3B82F6',
+                            data: []
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } }
+                    }
+                }
+            });
+
+            const ctxPeriod = document.getElementById('periodChart').getContext('2d');
+            periodChart = new Chart(ctxPeriod, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Accuracy %',
+                        borderColor: '#14B8A6',
+                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.3,
+                        data: []
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } }
+                    }
+                }
+            });
+        }
+
+        function updateDashboard() {
+            const selectedLag = document.getElementById('lagSelector').value;
+            const selectedCountry = document.getElementById('countrySelector').value;
+
+            // Filter data
+            let filteredData = rawData;
+            if (selectedCountry !== 'ALL') {
+                filteredData = rawData.filter(d => d.Country === selectedCountry);
+            }
+
+            // Calculate KPIs
+            let totalActual = 0;
+            let totalForecast = 0;
+            filteredData.forEach(d => {
+                totalActual += d.Actual_Revenue;
+                totalForecast += d[`${selectedLag}_Revenue_Forecast`];
+            });
+
+            const accuracy = totalActual > 0 ? (1 - Math.abs(totalForecast - totalActual) / totalActual) : 0;
+            const bias = totalActual > 0 ? ((totalForecast - totalActual) / totalActual) : 0;
+
+            // Update KPI Cards
+            document.getElementById('kpiForecast').innerText = formatCurrency(totalForecast);
+            document.getElementById('kpiActual').innerText = formatCurrency(totalActual);
+            document.getElementById('kpiAccuracy').innerText = formatPercent(accuracy);
+            document.getElementById('kpiBias').innerText = formatPercent(bias);
+
+            // Conditional formatting on Accuracy text color
+            const accCard = document.getElementById('kpiAccuracy');
+            if (accuracy > 0.75) {
+                accCard.className = "text-2xl font-bold mt-2 text-teal-400";
+            } else if (accuracy > 0.40) {
+                accCard.className = "text-2xl font-bold mt-2 text-yellow-400";
+            } else {
+                accCard.className = "text-2xl font-bold mt-2 text-rose-500";
+            }
+
+            // Update Country Chart
+            const countryAgg = {};
+            rawData.forEach(d => {
+                if (!countryAgg[d.Country]) {
+                    countryAgg[d.Country] = { actual: 0, forecast: 0 };
+                }
+                countryAgg[d.Country].actual += d.Actual_Revenue;
+                countryAgg[d.Country].forecast += d[`${selectedLag}_Revenue_Forecast`];
+            });
+
+            const countries = Object.keys(countryAgg).sort();
+            countryChart.data.labels = countries.map(c => `Country ${c}`);
+            countryChart.data.datasets[0].data = countries.map(c => countryAgg[c].actual);
+            countryChart.data.datasets[1].data = countries.map(c => countryAgg[c].forecast);
+            countryChart.data.datasets[1].label = `${selectedLag} Forecast`;
+            countryChart.update();
+
+            // Update Period Chart
+            const periodAgg = {};
+            filteredData.forEach(d => {
+                if (!periodAgg[d.Period]) {
+                    periodAgg[d.Period] = { actual: 0, forecast: 0 };
+                }
+                periodAgg[d.Period].actual += d.Actual_Revenue;
+                periodAgg[d.Period].forecast += d[`${selectedLag}_Revenue_Forecast`];
+            });
+
+            const periods = Object.keys(periodAgg).sort();
+            const accuracyTrend = periods.map(p => {
+                const act = periodAgg[p].actual;
+                const fc = periodAgg[p].forecast;
+                return act > 0 ? (1 - Math.abs(fc - act) / act) : 0;
+            });
+
+            periodChart.data.labels = periods;
+            periodChart.data.datasets[0].data = accuracyTrend;
+            periodChart.update();
+
+            // Update Summary Table
+            const tbody = document.getElementById('summaryTableBody');
+            tbody.innerHTML = '';
+
+            filteredData.sort((a,b) => a.Country.localeCompare(b.Country) || a.Period.localeCompare(b.Period)).forEach(d => {
+                const act = d.Actual_Revenue;
+                const fc = d[`${selectedLag}_Revenue_Forecast`];
+                const acc = act > 0 ? (1 - Math.abs(fc - act) / act) : 0;
+                const bs = act > 0 ? ((fc - act) / act) : 0;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition-colors";
+                
+                let accColor = "text-rose-400";
+                if (acc > 0.8) accColor = "text-teal-400";
+                else if (acc > 0.5) accColor = "text-yellow-400";
+
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 font-medium text-slate-200">Country ${d.Country}</td>
+                    <td class="py-2.5 px-4 text-slate-400">${d.Period}</td>
+                    <td class="py-2.5 px-4 text-right">${formatCurrency(act)}</td>
+                    <td class="py-2.5 px-4 text-right">${formatCurrency(fc)}</td>
+                    <td class="py-2.5 px-4 text-right font-semibold ${accColor}">${formatPercent(acc)}</td>
+                    <td class="py-2.5 px-4 text-right text-indigo-300">${formatPercent(bs)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.onload = function() {
+            initCharts();
+            updateDashboard();
+        };
+    </script>
+</body>
+</html>

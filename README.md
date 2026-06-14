@@ -2,6 +2,8 @@
 
 This repository contains the end-to-end data transformation pipeline, analytical reports, and Power BI modeling guidelines for **SIOP Case Study 2**. 
 
+🖥️ **[Live Interactive Dashboard Link](https://bhavyareddy16.github.io/siop-case-study-2/)**
+
 The goal of this project is to aggregate monthly SIOP forecast snapshots and compare them side-by-side with actual sales figures by `Item`, `Country`, and `Period` to report on forecast accuracy and bias.
 
 ---
