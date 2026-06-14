@@ -10,6 +10,7 @@ The goal of this project is to aggregate monthly SIOP forecast snapshots and com
 
 * **`build_siop_assignment.py`**: Python ETL script that parses the raw forecast/actual sheets from an `.xlsb` file, cleans keys, aggregates values, maps lag labels, and outputs the deliverables.
 * **`outputs/siop_case_study_2/`**:
+  * 🖥️ **`siop_dashboard.html` [NEW]**: Interactive, premium HTML dashboard containing responsive KPIs, country filters, lag toggles, and charts. Open directly on your Mac.
   * 📊 **`SIOP_Case_Study_2_Assignment_Pack.xlsx`**: Excel pack with automated summary dashboards, country-period breakdowns, charts, conditional formatting, and a data dictionary.
   * 🗄️ **`SIOP_Case_Study_2_Transformed_Data.csv`**: Transformed and aggregated fact table (112,282 rows) ready for BI modeling.
   * 📄 **`SIOP_Case_Study_2_Validation_Report.pdf`**: Premium, publication-ready PDF report presenting validation statistics, country KPIs, and a comparison visualization.
